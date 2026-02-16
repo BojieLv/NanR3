@@ -726,41 +726,48 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
 
     String status = null;
     Log.d("myTag", "Current phone build" + Build.VERSION.SDK_INT + "\tMinimum:" + Build.VERSION_CODES.O);
-    Log.d("myTag", "Supported Aware: " + getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE));
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    boolean hasNan = getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE);
+    Log.d("myTag", "Supported Aware: " + hasNan);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && hasNan) {
       Log.d("myTag", "Entering OnResume is executed");
-      IntentFilter filter = new IntentFilter(WifiAwareManager.ACTION_WIFI_AWARE_STATE_CHANGED);
-      broadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-          String status = "";
-          wifiAwareManager.getCharacteristics();
-          boolean nanAvailable = wifiAwareManager.isAvailable();
-          Log.d("myTag", "NAN is available");
-          if (nanAvailable) {
-            attachToNanSession();
-            status = "NAN has become Available";
-            Log.d("myTag", "NAN attached");
-          } else {
-            status = "NAN has become Unavailable";
-            Log.d("myTag", "NAN unavailable");
+      if (wifiAwareManager != null) {
+        IntentFilter filter = new IntentFilter(WifiAwareManager.ACTION_WIFI_AWARE_STATE_CHANGED);
+        broadcastReceiver = new BroadcastReceiver() {
+          @Override
+          public void onReceive(Context context, Intent intent) {
+            String status = "";
+            wifiAwareManager.getCharacteristics();
+            boolean nanAvailable = wifiAwareManager.isAvailable();
+            Log.d("myTag", "NAN is available");
+            if (nanAvailable) {
+              attachToNanSession();
+              status = "NAN has become Available";
+              Log.d("myTag", "NAN attached");
+            } else {
+              status = "NAN has become Unavailable";
+              Log.d("myTag", "NAN unavailable");
+            }
+
+            setStatus(status);
           }
+        };
 
-          setStatus(status);
+        getApplicationContext().registerReceiver(broadcastReceiver, filter);
+
+        boolean nanAvailable = wifiAwareManager.isAvailable();
+        if (nanAvailable) {
+          attachToNanSession();
+          status = "NAN is Available";
+        } else {
+          status = "NAN is Unavailable";
         }
-      };
-
-      getApplicationContext().registerReceiver(broadcastReceiver, filter);
-
-      boolean nanAvailable = wifiAwareManager.isAvailable();
-      if (nanAvailable) {
-        attachToNanSession();
-        status = "NAN is Available";
       } else {
-        status = "NAN is Unavailable";
+        status = "Cannot get WifiAwareManager";
       }
-    } else {
+    } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       status = "NAN is only supported in O+";
+    } else {
+      status = "Device does not have NAN";
     }
 
     setStatus(status);
@@ -1035,7 +1042,14 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
   @Override
   protected void onPause() {
     super.onPause();
-    getApplicationContext().unregisterReceiver(broadcastReceiver);
+    if (broadcastReceiver != null) {
+      try {
+        getApplicationContext().unregisterReceiver(broadcastReceiver);
+      } catch (IllegalArgumentException e) {
+        // Receiver was not registered
+        Log.d("myTag", "Receiver was not registered");
+      }
+    }
     closeSession();
   }
 
