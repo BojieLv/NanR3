@@ -16,7 +16,16 @@ import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.PreferenceScreen;
 
+/**
+ * SettingsActivity - Settings screen for Wi-Fi Aware configuration.
+ *
+ * <p>This activity provides a user interface for configuring Wi-Fi Aware service
+ * parameters including service name, service-specific info, publish/subscribe types,
+ * and encryption settings.</p>
+ */
 public class SettingsActivity extends AppCompatActivity {
+
+    private static final String TAG = "NanR3.Settings";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,10 +53,25 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    /**
+     * SettingsFragment - Fragment for managing Wi-Fi Aware preference settings.
+     *
+     * <p>This fragment handles the preference UI and manages changes to Wi-Fi Aware
+     * configuration including service name, service-specific info, publish/subscribe
+     * type selection, and security passphrase settings.</p>
+     */
     public static class SettingsFragment extends PreferenceFragmentCompat implements
             SharedPreferences.OnSharedPreferenceChangeListener, OnPreferenceChangeListener {
         EditTextPreference passphrase;
         String currentEncryptType;
+
+        /**
+         * Called during fragment creation to set up the preferences.
+         *
+         * @param savedInstanceState If non-null, this fragment is being reconstructed
+         * @param rootKey If non-null, this fragment is being constructed with a preference
+         *                hierarchy rooted at this key
+         */
         @Override
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey);
@@ -57,11 +81,26 @@ public class SettingsActivity extends AppCompatActivity {
             Preference name = findPreference(getString(R.string.service_name));
             Preference info = findPreference(getString(R.string.service_specific_info));
             Preference pass = findPreference(getString(R.string.security_pass));
-            name.setOnPreferenceChangeListener(this);
-            info.setOnPreferenceChangeListener(this);
-            pass.setOnPreferenceChangeListener(this);
+            if (name != null) {
+                name.setOnPreferenceChangeListener(this);
+            }
+            if (info != null) {
+                info.setOnPreferenceChangeListener(this);
+            }
+            if (pass != null) {
+                pass.setOnPreferenceChangeListener(this);
+            }
         }
 
+        /**
+         * Called when a preference value has been changed.
+         *
+         * <p>This method handles visibility of the passphrase field based on
+         * the selected encryption type (open/pmk/psk).</p>
+         *
+         * @param sharedPreferences The SharedPreferences containing the changed preference
+         * @param key The key of the preference that was changed
+         */
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
             // Figure out which preference was changed
@@ -71,13 +110,19 @@ public class SettingsActivity extends AppCompatActivity {
             String type = sharedPreferences.getString(key, "");
             if (key.equals(secType)) {
                 if (type.equals("pmk")) {
-                    passphrase.setVisible(true);
-                    passphrase.setText("123456789abcdef0123456789abcdef0");
+                    if (passphrase != null) {
+                        passphrase.setVisible(true);
+                        passphrase.setText("123456789abcdef0123456789abcdef0");
+                    }
                 } else if (type.equals("psk")) {
-                    passphrase.setVisible(true);
-                    passphrase.setText("12345678");
+                    if (passphrase != null) {
+                        passphrase.setVisible(true);
+                        passphrase.setText("12345678");
+                    }
                 } else {
-                    passphrase.setVisible(false);
+                    if (passphrase != null) {
+                        passphrase.setVisible(false);
+                    }
                 }
             }
             if (null != preference) {
@@ -91,6 +136,16 @@ public class SettingsActivity extends AppCompatActivity {
 
         }
 
+        /**
+         * Called when a preference is about to be changed and should be validated.
+         *
+         * <p>This method validates that service name and service-specific info
+         * are not empty before allowing the change.</p>
+         *
+         * @param preference The Preference to be changed
+         * @param newValue The new value for the preference
+         * @return true to allow the change, false to reject
+         */
         @Override
         public boolean onPreferenceChange(Preference preference, Object newValue) {
             Toast error = Toast.makeText(getContext(), "Please enter non empty string", Toast.LENGTH_LONG);
@@ -98,7 +153,7 @@ public class SettingsActivity extends AppCompatActivity {
             String infokey = getString(R.string.service_specific_info);
             String passkey = getString(R.string.security_pass);
             if (preference.getKey().equals(namekey)||preference.getKey().equals(infokey)) {
-                Log.d("prefs","IN HERE ");
+                Log.d(TAG,"IN HERE ");
                 String name = (String) newValue;
                 if (name.isEmpty()) {
                     error.show();
@@ -134,7 +189,10 @@ public class SettingsActivity extends AppCompatActivity {
             String secType = getString(R.string.encryptType);
             passphrase = (EditTextPreference) getPreferenceManager().findPreference(getResources().getString(R.string.security_pass));
             currentEncryptType = getPreferenceManager().getSharedPreferences().getString(secType,"");
-            Log.d("prefs","TYPE "+currentEncryptType);
+            Log.d(TAG,"TYPE "+currentEncryptType);
+            if (passphrase == null) {
+                return;
+            }
             if (currentEncryptType.equals("open")){
                 passphrase.setVisible(false);
             }

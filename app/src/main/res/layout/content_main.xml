@@ -1,147 +1,230 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
+  android:background="@color/screenBackground"
+  android:fillViewport="true"
+  android:padding="16dp"
   app:layout_behavior="@string/appbar_scrolling_view_behavior"
   tools:context=".MainActivity"
   tools:showIn="@layout/activity_main">
 
-  <TextView
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="88dp">
+
+    <TextView
       android:id="@+id/status"
-      android:layout_width="290dp"
-      android:layout_height="40dp"
-      android:layout_marginStart="8dp"
-      android:layout_marginEnd="8dp"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:background="@drawable/bg_status_panel"
+      android:lineSpacingExtra="3dp"
+      android:minHeight="96dp"
+      android:padding="18dp"
       android:text="@string/this_is_the_status"
-      app:layout_constraintEnd_toEndOf="parent"
-      app:layout_constraintStart_toStartOf="parent" />
+      android:textColor="@color/statusText"
+      android:textSize="16sp"
+      android:textStyle="bold" />
 
-  <CheckBox
-      android:id="@+id/haveSession"
-      android:layout_width="234dp"
-      android:layout_height="41dp"
-      android:layout_marginStart="24dp"
-      android:layout_marginTop="64dp"
-      android:text="@string/have_session"
-      app:layout_constraintStart_toStartOf="parent"
-      app:layout_constraintTop_toTopOf="parent" />
-
-  <EditText
-      android:id="@+id/macAddress"
-      android:layout_width="377dp"
-      android:layout_height="44dp"
-      android:layout_marginStart="5dp"
-      android:layout_marginTop="16dp"
-      android:ems="10"
-      android:inputType="textPersonName"
-      android:text="@string/mac"
-      app:layout_constraintStart_toStartOf="parent"
-      app:layout_constraintTop_toBottomOf="@+id/haveSession" />
-
-  <Button
-      android:id="@+id/responderButton"
-      android:layout_width="wrap_content"
+    <LinearLayout
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginStart="32dp"
-      android:layout_marginTop="32dp"
-      android:enabled="false"
-      android:text="@string/responder"
-      android:visibility="visible"
-      app:layout_constraintStart_toEndOf="@+id/publishButton"
-      app:layout_constraintTop_toBottomOf="@+id/macAddress" />
+      android:layout_marginTop="14dp"
+      android:background="@drawable/bg_card"
+      android:orientation="vertical"
+      android:padding="16dp">
 
-  <EditText
-      android:id="@+id/otherMac"
-      android:layout_width="374dp"
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <CheckBox
+          android:id="@+id/haveSession"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:clickable="false"
+          android:focusable="false"
+          android:text="@string/have_session"
+          android:textColor="@color/textPrimary"
+          android:textStyle="bold" />
+
+        <Button
+          android:id="@+id/statusbtn"
+          style="@style/Widget.Nan.SecondaryButton"
+          android:layout_width="wrap_content"
+          android:layout_height="44dp"
+          android:text="@string/capabilities" />
+      </LinearLayout>
+
+      <TextView
+        style="@style/Widget.Nan.FieldLabel"
+        android:text="@string/mac" />
+
+      <EditText
+        android:id="@+id/macAddress"
+        style="@style/Widget.Nan.ValueField"
+        android:hint="@string/mac"
+        android:inputType="text"
+        android:text="@string/mac" />
+
+      <TextView
+        style="@style/Widget.Nan.FieldLabel"
+        android:text="@string/other_mac" />
+
+      <EditText
+        android:id="@+id/otherMac"
+        style="@style/Widget.Nan.ValueField"
+        android:hint="@string/other_mac"
+        android:inputType="text"
+        android:text="@string/other_mac" />
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginStart="5dp"
-      android:layout_marginTop="32dp"
-      android:ems="10"
-      android:inputType="textPersonName"
-      android:text="@string/other_mac"
-      app:layout_constraintStart_toStartOf="parent"
-      app:layout_constraintTop_toBottomOf="@+id/responderButton" />
+      android:layout_marginTop="14dp"
+      android:background="@drawable/bg_card"
+      android:orientation="vertical"
+      android:padding="16dp">
 
-  <Button
-      android:id="@+id/initiatorButton"
-      android:layout_width="wrap_content"
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/discovery"
+        android:textColor="@color/textPrimary"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <Button
+          android:id="@+id/publishButton"
+          style="@style/Widget.Nan.PrimaryButton"
+          android:layout_width="0dp"
+          android:layout_height="48dp"
+          android:layout_marginEnd="8dp"
+          android:layout_weight="1"
+          android:text="@string/publish" />
+
+        <Button
+          android:id="@+id/subscribeButton"
+          style="@style/Widget.Nan.PrimaryButton"
+          android:layout_width="0dp"
+          android:layout_height="48dp"
+          android:layout_marginStart="8dp"
+          android:layout_weight="1"
+          android:text="@string/subscribe" />
+      </LinearLayout>
+
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <Button
+          android:id="@+id/responderButton"
+          style="@style/Widget.Nan.SecondaryButton"
+          android:layout_width="0dp"
+          android:layout_height="48dp"
+          android:layout_marginEnd="8dp"
+          android:layout_weight="1"
+          android:enabled="false"
+          android:text="@string/responder"
+          android:visibility="visible" />
+
+        <Button
+          android:id="@+id/initiatorButton"
+          style="@style/Widget.Nan.SecondaryButton"
+          android:layout_width="0dp"
+          android:layout_height="48dp"
+          android:layout_marginStart="8dp"
+          android:layout_weight="1"
+          android:enabled="false"
+          android:text="@string/initiator"
+          android:visibility="visible" />
+      </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginStart="32dp"
-      android:layout_marginTop="32dp"
-      android:enabled="false"
-      android:text="@string/initiator"
-      android:visibility="visible"
-      app:layout_constraintStart_toEndOf="@+id/subscribeButton"
-      app:layout_constraintTop_toBottomOf="@+id/otherMac" />
+      android:layout_marginTop="14dp"
+      android:background="@drawable/bg_card"
+      android:orientation="vertical"
+      android:padding="16dp">
 
-  <Button
-    android:id="@+id/publishButton"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginStart="32dp"
-    android:layout_marginTop="32dp"
-    android:text="@string/publish"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@+id/macAddress" />
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/transfer"
+        android:textColor="@color/textPrimary"
+        android:textSize="17sp"
+        android:textStyle="bold" />
 
-  <Button
-    android:id="@+id/subscribeButton"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginStart="32dp"
-    android:layout_marginTop="32dp"
-    android:text="@string/subscribe"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@+id/otherMac" />
+      <TextView
+        style="@style/Widget.Nan.FieldLabel"
+        android:text="@string/ipv6_addr" />
 
-  <Button
-      android:id="@+id/sendbtn"
-      android:layout_width="wrap_content"
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+          android:id="@+id/IPv6text"
+          style="@style/Widget.Nan.ValueField"
+          android:layout_width="0dp"
+          android:layout_weight="1"
+          android:hint="@string/ipv6_address"
+          android:importantForAutofill="no"
+          android:inputType="text" />
+
+        <Button
+          android:id="@+id/sendbtn"
+          style="@style/Widget.Nan.PrimaryButton"
+          android:layout_width="112dp"
+          android:layout_height="48dp"
+          android:layout_marginStart="10dp"
+          android:text="@string/send_file" />
+      </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginStart="16dp"
-      android:layout_marginTop="32dp"
-      android:text="@string/send_file"
-      app:layout_constraintStart_toEndOf="@+id/IPv6text"
-      app:layout_constraintTop_toBottomOf="@+id/initiatorButton" />
+      android:layout_marginTop="14dp"
+      android:background="@drawable/bg_card"
+      android:orientation="vertical"
+      android:padding="16dp">
 
-  <EditText
-      android:id="@+id/IPv6text"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginStart="32dp"
-      android:layout_marginTop="32dp"
-      android:allowUndo="false"
-      android:ems="10"
-      android:hint="@string/ipv6_address"
-      android:inputType="textPersonName"
-      app:layout_constraintStart_toStartOf="parent"
-      app:layout_constraintTop_toBottomOf="@+id/initiatorButton" />
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/messaging"
+        android:textColor="@color/textPrimary"
+        android:textSize="17sp"
+        android:textStyle="bold" />
 
-  <EditText
-      android:id="@+id/msgtext"
-      android:layout_width="343dp"
-      android:layout_height="43dp"
-      android:layout_marginStart="5dp"
-      android:layout_marginBottom="12dp"
-      android:ems="10"
-      android:hint="@string/messagetosend"
-      android:importantForAutofill="no"
-      android:inputType="textPersonName"
-      app:layout_constraintBottom_toBottomOf="parent"
-      app:layout_constraintStart_toStartOf="parent" />
-
-  <Button
-      android:id="@+id/statusbtn"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginStart="8dp"
-      android:layout_marginTop="64dp"
-      android:layout_marginEnd="8dp"
-      android:text="Status"
-      app:layout_constraintEnd_toEndOf="parent"
-      app:layout_constraintStart_toEndOf="@+id/haveSession"
-      app:layout_constraintTop_toTopOf="parent" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+      <EditText
+        android:id="@+id/msgtext"
+        style="@style/Widget.Nan.ValueField"
+        android:layout_marginTop="12dp"
+        android:hint="@string/messagetosend"
+        android:importantForAutofill="no"
+        android:inputType="text" />
+    </LinearLayout>
+  </LinearLayout>
+</androidx.core.widget.NestedScrollView>

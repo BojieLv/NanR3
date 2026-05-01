@@ -3,4 +3,14 @@
   <color name="colorPrimary">#3F51B5</color>
   <color name="colorPrimaryDark">#303F9F</color>
   <color name="colorAccent">#FF4081</color>
+  <color name="screenBackground">#F5F7FA</color>
+  <color name="surfaceCard">#FFFFFF</color>
+  <color name="statusPanel">#12343B</color>
+  <color name="statusText">#F8FBFC</color>
+  <color name="textPrimary">#172126</color>
+  <color name="textSecondary">#66747D</color>
+  <color name="fieldBackground">#EEF3F6</color>
+  <color name="buttonPrimary">#176D7A</color>
+  <color name="buttonSecondary">#E6EEF1</color>
+  <color name="buttonSecondaryText">#174B54</color>
 </resources>
