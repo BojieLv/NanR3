@@ -238,7 +238,7 @@ The application requires the following permissions:
 Note: File selection uses `ACTION_OPEN_DOCUMENT` which doesn't require storage permissions.
 
 
-## Debugging
+## Logcat Filters
 
 Use Logcat filters:
 
@@ -270,6 +270,6 @@ Important file-transfer logs include:
 - Ensure devices are within close proximity
 - Check device specifications for Wi-Fi Aware support
 - Review logcat for error messages:
-  - Filter by tag "NanR3" for application logs
+  - Filter by tag "myNanR3" for application logs
   - Filter by "WifiAware" for system logs
   - Exception stack traces for send/receive failures.
