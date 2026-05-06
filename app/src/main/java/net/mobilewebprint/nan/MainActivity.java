@@ -112,10 +112,10 @@ import java.util.Map;
 
 public class MainActivity extends AppCompatActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
 
-  private static final String APP_LABEL = "NanR3";
-  private static final String TAG_NAN = "NanR3.NAN";
-  private static final String TAG_FILE = "NanR3.File";
-  private static final String TAG_PREFS = "NanR3.Prefs";
+  private static final String APP_LABEL = "myNanR3";
+  private static final String TAG_NAN = "myNanR3.NAN";
+  private static final String TAG_FILE = "myNanR3.File";
+  private static final String TAG_PREFS = "myNanR3.Prefs";
   private final int MAC_ADDRESS_MESSAGE = 55;
   private static final int MY_PERMISSION_FINE_LOCATION_REQUEST_CODE = 88;
   private static final int MY_PERMISSION_BACKGROUND_LOCATION_REQUEST_CODE = 66;
@@ -343,7 +343,6 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
       public void onClick(View v) {
         responderNdpRequested = false;
         publishService();
-        setStatus("Publisher started. Waiting for peer, then NDP starts automatically.");
       }
     });
 
@@ -353,7 +352,6 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
       public void onClick(View v) {
         initiatorNdpRequested = false;
         subscribeToService();
-        setStatus("Subscriber started. Waiting for peer, then NDP starts automatically.");
       }
     });
 
@@ -972,6 +970,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
       setupPermissions();
       return;
     }
+    Log.d(TAG_NAN, "Wi-Fi Aware is available, attaching to NAN cluster (bringing up NAN interface)...");
     wifiAwareManager.attach(new AttachCallback() {
       @Override
       public void onAttached(WifiAwareSession session) {
@@ -1004,6 +1003,14 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       return;
     }
+
+    if (wifiAwareSession == null) {
+      Log.e(TAG_NAN, "Cannot publish: Wi-Fi Aware session is not available");
+      setStatus("Wi-Fi Aware is not available. Check device support.");
+      Toast.makeText(this, "Wi-Fi Aware is not available on this device", Toast.LENGTH_LONG).show();
+      return;
+    }
+
     Log.d(TAG_NAN, "building publish session " + SERVICE_NAME);
 
     if (pubType == PublishConfig.PUBLISH_TYPE_UNSOLICITED)
@@ -1052,6 +1059,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
 
         publishDiscoverySession = session;
         startServer(0, 3);
+        setStatus("Publisher started. Waiting for peer, then NDP starts automatically.");
         Button sendBtn = (Button) findViewById(R.id.sendbtn);
         sendBtn.setEnabled(true);
         Button responderButton = (Button) findViewById(R.id.responderButton);
@@ -1122,6 +1130,14 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       return;
     }
+
+    if (wifiAwareSession == null) {
+      Log.e(TAG_NAN, "Cannot subscribe: Wi-Fi Aware session is not available");
+      setStatus("Wi-Fi Aware is not available. Check device support.");
+      Toast.makeText(this, "Wi-Fi Aware is not available on this device", Toast.LENGTH_LONG).show();
+      return;
+    }
+
     Log.d(TAG_NAN, "building subscribe session");
 
     if (subType == SubscribeConfig.SUBSCRIBE_TYPE_ACTIVE)
@@ -1165,6 +1181,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
 
         subscribeDiscoverySession = session;
         startServer(0, 3);
+        setStatus("Subscriber started. Waiting for peer, then NDP starts automatically.");
 
         if (subscribeDiscoverySession != null && peerHandle != null) {
           subscribeDiscoverySession.sendMessage(peerHandle, MAC_ADDRESS_MESSAGE, myMac);
