@@ -206,6 +206,15 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\gradlew installDebug
 ```
 
+## Controls
+
+- `Publish`: Starts Wi-Fi Aware publish mode and automatically prepares NDP when a peer is found.
+- `Subscribe`: Starts Wi-Fi Aware subscribe mode and automatically prepares NDP when a peer is found.
+- `Capabilities`: Shows the current device's Wi-Fi Aware capability report.
+- `Send File`: Opens the Android file picker and sends the selected file to the peer.
+- Floating message button: Sends the text in the message field over the active discovery session.
+
+
 ## Usage
 
 1. **On Sender Device**:
@@ -227,6 +236,27 @@ The application requires the following permissions:
 - `WRITE_EXTERNAL_STORAGE` (API <= 28): Legacy storage access (not required for modern devices)
 
 Note: File selection uses `ACTION_OPEN_DOCUMENT` which doesn't require storage permissions.
+
+
+## Debugging
+
+Use Logcat filters:
+
+```text
+myNanR3.File|myNanR3.NAN
+```
+
+Important file-transfer logs include:
+
+- File picker launch and selected URI.
+- Peer IPv6 and file port readiness.
+- Sender socket connection.
+- Sender file header: name, size, MIME type.
+- Receiver server bind port.
+- Receiver socket accept.
+- Receiver file header and save URI/path.
+- Sender and receiver progress.
+- Exception stack traces for send/receive failures.
 
 ## Limitations
 
