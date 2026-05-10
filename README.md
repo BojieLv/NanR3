@@ -2,6 +2,13 @@
 
 A peer-to-peer file transfer application using Wi-Fi Aware (NAN - Neighbor Awareness Networking).
 
+A peer-to-peer file transfer application using Wi-Fi Aware (NAN - Neighbor Awareness Networking).
+
+The `codex/transfer-engineering-optimization` branch includes optimized file transfer mechanisms, including improved reliability, retry handling, and transmission stability.
+
+Please visit:
+https://github.com/BojieLv/NanR3/tree/codex/transfer-engineering-optimization
+
 ## Features
 
 - **Wi-Fi Aware Discovery**: Uses NAN to discover nearby devices without requiring a Wi-Fi network connection
