@@ -10,6 +10,21 @@ android {
         versionName "1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            if (variant.buildType.name == 'release') {
+                def buildDate = new Date().format('yyyyMMdd')
+                def branchName = 'unknown-branch'
+                try {
+                    branchName = 'git branch --show-current'.execute(null, rootDir).text.trim()
+                } catch (Exception ignored) {
+                    branchName = 'unknown-branch'
+                }
+                def safeBranchName = (branchName ?: 'unknown-branch').replaceAll(/[^A-Za-z0-9._-]+/, '-')
+                outputFileName = "NanR3-${safeBranchName}-v${variant.versionName}-transfer-opt-${buildDate}-unsigned.apk"
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false

@@ -20,6 +20,36 @@ A peer-to-peer file transfer application using Wi-Fi Aware (NAN - Neighbor Aware
 
 ### Phase 1: Wi-Fi Aware Discovery & NDP Establishment
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Publisher / Sender
+    participant NAN as Wi-Fi Aware NAN Cluster
+    participant S as Subscriber / Receiver
+
+    P->>P: Publish button
+    S->>S: Subscribe button
+    P->>NAN: attach() and publish(SERVICE_NAME)
+    S->>NAN: attach() and subscribe(SERVICE_NAME)
+    P->>P: startServer(0, backlog)
+    S->>S: startServer(0, backlog)
+    NAN-->>P: onPublishStarted()
+    NAN-->>S: onSubscribeStarted()
+    NAN-->>P: onServiceDiscovered(peerHandle)
+    NAN-->>S: onServiceDiscovered(peerHandle)
+    P-->>S: sendMessage(MAC, receiverPort)
+    S-->>P: sendMessage(MAC, receiverPort)
+    P-->>S: sendMessage(local IPv6)
+    S-->>P: sendMessage(local IPv6)
+    P->>NAN: startResponderNdpIfReady()
+    S->>NAN: startInitiatorNdpIfReady()
+    NAN-->>P: onCapabilitiesChanged(peerIpv6, peerPort)
+    NAN-->>S: onCapabilitiesChanged(peerIpv6, peerPort)
+    NAN-->>P: onLinkPropertiesChanged(local IPv6, interface)
+    NAN-->>S: onLinkPropertiesChanged(local IPv6, interface)
+    P<->>S: NDP established over scoped IPv6
+```
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    Publisher (Sender) Device                           │
@@ -106,6 +136,31 @@ A peer-to-peer file transfer application using Wi-Fi Aware (NAN - Neighbor Aware
 ```
 
 ### Phase 2: File Transfer (Publisher → Subscriber)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sender as Sender UI / clientSendFile()
+    participant NDP as TCP over Wi-Fi Aware NDP
+    participant Receiver as Receiver server / receiveSingleFile()
+    participant Store as MediaStore Downloads/NanR3
+
+    Sender->>Sender: Send File button
+    Sender->>Sender: ACTION_OPEN_DOCUMENT picks Uri
+    Sender->>NDP: openConnectedSocket(peer IPv6, receiver port)
+    NDP-->>Receiver: serverSocket.accept()
+    Sender->>Receiver: writeUTF(fileName)
+    Sender->>Receiver: writeLong(fileSize)
+    Sender->>Receiver: writeUTF(mimeType)
+    Receiver->>Store: create pending file entry
+    loop Copy file body with 64 KiB buffer
+        Sender->>Receiver: write(buffer)
+        Receiver->>Store: write(buffer)
+    end
+    Receiver->>Receiver: verify received bytes match fileSize
+    Receiver->>Store: flush and publish completed file
+    Receiver-->>Sender: TCP stream closes after successful transfer
+```
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
