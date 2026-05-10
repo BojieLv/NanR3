@@ -7,6 +7,7 @@ import static android.net.wifi.aware.Characteristics.WIFI_AWARE_CIPHER_SUITE_NCS
 import android.Manifest;
 import android.annotation.TargetApi;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
@@ -73,6 +74,7 @@ import java.lang.Thread;
 import java.lang.Runnable;
 import java.lang.reflect.Method;
 import java.net.SocketException;
+import java.net.InetSocketAddress;
 import java.net.InetAddress;
 import java.net.Inet6Address;
 import java.net.NetworkInterface;
@@ -116,6 +118,12 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
   private static final String TAG_NAN = "myNanR3.NAN";
   private static final String TAG_FILE = "myNanR3.File";
   private static final String TAG_PREFS = "myNanR3.Prefs";
+  private static final int TRANSFER_BUFFER_SIZE = 64 * 1024;
+  private static final int SOCKET_CONNECT_TIMEOUT_MS = 12_000;
+  private static final int SOCKET_READ_TIMEOUT_MS = 30_000;
+  private static final int SEND_CONNECT_MAX_ATTEMPTS = 3;
+  private static final int SEND_RETRY_DELAY_MS = 600;
+  private static final long PROGRESS_LOG_BYTES = 1024 * 1024;
   private final int MAC_ADDRESS_MESSAGE = 55;
   private static final int MY_PERMISSION_FINE_LOCATION_REQUEST_CODE = 88;
   private static final int MY_PERMISSION_BACKGROUND_LOCATION_REQUEST_CODE = 66;
@@ -149,7 +157,8 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
   private static final int MY_PERMISSION_NEARBY_WIFI_DEV = 86;
   private static final int REQUEST_PICK_FILE_TO_SEND = 120;
   private Inet6Address ipv6;
-  private ServerSocket serverSocket;
+  private volatile ServerSocket serverSocket;
+  private volatile Network activeAwareNetwork;
   private Inet6Address peerIpv6;
   private int peerPort;
   //  private final byte[]              serviceInfo            = "android".getBytes();
@@ -161,10 +170,10 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
   private byte[] msgtosend;
   private Inet6Address pendingFileServerIp;
   private int pendingFileServerPort;
-  private boolean fileServerStarted;
-  private boolean responderNdpRequested;
-  private boolean initiatorNdpRequested;
-  private boolean shuttingDown;
+  private volatile boolean fileServerStarted;
+  private volatile boolean responderNdpRequested;
+  private volatile boolean initiatorNdpRequested;
+  private volatile boolean shuttingDown;
 
 
   @Override
@@ -455,6 +464,19 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     return hasLocation && hasNearbyWifi;
   }
 
+  /**
+   * Validates the peer addressing state and opens Android's document picker.
+   *
+   * <p>Input comes from the current NDP/discovery state: {@link #peerIpv6} supplies the
+   * scoped Wi-Fi Aware interface, {@link #otherIP} supplies the peer link-local address,
+   * and {@link #portToUse}/{@link #peerPort} supply the receiver port. The method stores
+   * a resolved, scoped destination in {@link #pendingFileServerIp} and
+   * {@link #pendingFileServerPort}; the actual file URI is returned later through
+   * {@link #onActivityResult(int, int, Intent)}.</p>
+   *
+   * <p>Failures are reported to the user instead of launching the picker, because picking
+   * a file before NDP/port exchange is complete would almost always lead to a failed send.</p>
+   */
   private void chooseFileForSend() {
     Log.d(TAG_FILE, "Send File clicked. peerIpv6=" + peerIpv6
             + ", otherIP=" + (otherIP == null ? "null" : Inet6AddressBytesToString(otherIP))
@@ -468,6 +490,8 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
       return;
     }
 
+    // Open data paths exchange the file server port as a discovery message. Secured data
+    // paths expose the negotiated port through WifiAwareNetworkInfo.
     int serverPort = EncryptType.equals("open") ? portToUse : peerPort;
     if (serverPort <= 0) {
       Log.d(TAG_FILE, "Cannot open picker: peer file-transfer port is not ready.");
@@ -497,6 +521,11 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     startActivityForResult(intent, REQUEST_PICK_FILE_TO_SEND);
   }
 
+  /**
+   * Starts the subscriber side of the Wi-Fi Aware NDP once discovery has produced a peer.
+   *
+   * @param reason diagnostic label identifying which async callback made the state ready
+   */
   private void startInitiatorNdpIfReady(String reason) {
     Log.d(TAG_NAN, "startInitiatorNdpIfReady reason=" + reason
             + ", alreadyRequested=" + initiatorNdpRequested
@@ -535,6 +564,11 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     }
   }
 
+  /**
+   * Starts the publisher side of the Wi-Fi Aware NDP once the peer and receiver server are ready.
+   *
+   * @param reason diagnostic label identifying which async callback made the state ready
+   */
   private void startResponderNdpIfReady(String reason) {
     Log.d(TAG_NAN, "startResponderNdpIfReady reason=" + reason
             + ", alreadyRequested=" + responderNdpRequested
@@ -584,6 +618,13 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     }
   }
 
+  /**
+   * Sends this device's receiver server port over the discovery session.
+   *
+   * <p>The receiver listens on an ephemeral local port. This lightweight message lets the peer
+   * connect over the NDP after both IPv6 addresses are exchanged. If discovery has not completed
+   * yet, the method logs and returns; later callbacks call it again.</p>
+   */
   private void sendServerPortToPeer() {
     if (serverSocket == null || serverSocket.isClosed() || serverSocket.getLocalPort() <= 0) {
       Log.d(TAG_FILE, "Cannot send server port: server socket is not ready.");
@@ -777,6 +818,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
       @Override
       public void onAvailable(Network network) {
         super.onAvailable(network);
+        activeAwareNetwork = network;
         Log.d(TAG_NAN, "Network available: " + network.toString());
       }
 
@@ -789,6 +831,9 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
       @Override
       public void onLost(Network network) {
         super.onLost(network);
+        if (network.equals(activeAwareNetwork)) {
+          activeAwareNetwork = null;
+        }
         Toast.makeText(MainActivity.this, "lost network", Toast.LENGTH_LONG).show();
         Log.d(TAG_NAN, "Network lost: " + network);
       }
@@ -1279,6 +1324,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     responderNdpRequested = false;
     initiatorNdpRequested = false;
     fileServerStarted = false;
+    activeAwareNetwork = null;
   }
 
   /**
@@ -1485,51 +1531,17 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
 
             Log.d(TAG_FILE, "Receiver waiting for incoming socket. localPort=" + portToUse);
             Socket clientSocket = serverSocket.accept();
+            clientSocket.setKeepAlive(true);
+            clientSocket.setSoTimeout(SOCKET_READ_TIMEOUT_MS);
             Log.d(TAG_FILE, "Receiver accepted connection. remote=" + clientSocket.getRemoteSocketAddress()
                     + ", local=" + clientSocket.getLocalSocketAddress());
-            DataInputStream in = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
-            String fileName = sanitizeFileName(in.readUTF());
-            long fileSizeInBytes = in.readLong();
-            String mimeType = in.readUTF();
-            if (mimeType == null || mimeType.length() == 0) {
-              mimeType = "application/octet-stream";
+            try {
+              receiveSingleFile(clientSocket);
+            } catch (IOException e) {
+              // Keep the receiver alive after a single failed transfer so the peer can retry
+              // without forcing both devices to restart discovery and NDP.
+              Log.e(TAG_FILE, "Receiver rejected one incoming transfer but server remains active.", e);
             }
-            Log.d(TAG_FILE, "Receiver header read. fileName=" + fileName
-                    + ", fileSize=" + fileSizeInBytes
-                    + ", mimeType=" + mimeType);
-            byte[] buffer = new byte[4096];
-            int read;
-            long totalRead = 0;
-
-            OutputStream fos = openIncomingFileOutput(fileName, mimeType);
-            if (fos == null) {
-              Log.e(TAG_FILE, "Receiver could not open output file for " + fileName);
-              setStatus("Could not save incoming file.");
-              clientSocket.close();
-              continue;
-            }
-
-            Log.d(TAG_FILE, "Receiver body transfer started. fileName=" + fileName
-                    + ", expectedBytes=" + fileSizeInBytes);
-            while ((read = in.read(buffer)) > 0) {
-              fos.write(buffer, 0, read);
-              totalRead += read;
-              if (fileSizeInBytes > 0 && totalRead % (1024 * 1024) < read) {
-                float percent = (float) totalRead / fileSizeInBytes * 100;
-                Log.d(TAG_FILE, "Receiver progress. fileName=" + fileName
-                        + ", bytes=" + totalRead
-                        + "/" + fileSizeInBytes
-                        + ", percent=" + String.format("%.1f", percent));
-                setStatus("Receiving " + fileName + ": " + String.format("%.1f", percent) + "%");
-              }
-            }
-            fos.close();
-            in.close();
-            clientSocket.close();
-            Log.d(TAG_FILE, "Receiver body transfer finished. fileName=" + fileName
-                    + ", totalBytes=" + totalRead
-                    + ", expectedBytes=" + fileSizeInBytes);
-            setStatus("Received file: " + fileName);
 
           }
         } catch (IOException e) {
@@ -1548,12 +1560,105 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
 
   }
 
-  private OutputStream openIncomingFileOutput(String fileName, String mimeType) throws IOException {
+  /**
+   * Receives one file from an already accepted socket.
+   *
+   * <p>Input is a socket whose stream contains the protocol header written by
+   * {@link #clientSendFile(Uri, Inet6Address, int)}: UTF file name, long file size, UTF MIME type,
+   * followed by the raw file bytes. Output is a saved file in Downloads/NanR3. If the sender closes
+   * early or storage fails, the method throws after marking/removing the partial MediaStore entry.</p>
+   *
+   * @throws IOException when the socket stream, header, byte count, or destination file fails
+   */
+  private void receiveSingleFile(Socket clientSocket) throws IOException {
+    String fileName = null;
+    IncomingFileTarget target = null;
+    long totalRead = 0;
+
+    try (Socket socket = clientSocket;
+         DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), TRANSFER_BUFFER_SIZE))) {
+      fileName = sanitizeFileName(in.readUTF());
+      long fileSizeInBytes = in.readLong();
+      String mimeType = in.readUTF();
+      if (mimeType == null || mimeType.length() == 0) {
+        mimeType = "application/octet-stream";
+      }
+
+      Log.d(TAG_FILE, "Receiver header read. fileName=" + fileName
+              + ", fileSize=" + fileSizeInBytes
+              + ", mimeType=" + mimeType);
+      target = openIncomingFileTarget(fileName, mimeType);
+      if (target == null || target.outputStream == null) {
+        throw new IOException("Could not open output file for " + fileName);
+      }
+
+      byte[] buffer = new byte[TRANSFER_BUFFER_SIZE];
+      Log.d(TAG_FILE, "Receiver body transfer started. fileName=" + fileName
+              + ", expectedBytes=" + fileSizeInBytes);
+      setStatus("Receiving " + fileName + "...");
+
+      if (fileSizeInBytes >= 0) {
+        totalRead = copyKnownLength(in, target.outputStream, buffer, fileName, fileSizeInBytes);
+      } else {
+        totalRead = copyUntilEof(in, target.outputStream, buffer, fileName);
+      }
+      target.outputStream.flush();
+      target.markCompleted(getContentResolver());
+      Log.d(TAG_FILE, "Receiver body transfer finished. fileName=" + fileName
+              + ", totalBytes=" + totalRead
+              + ", expectedBytes=" + fileSizeInBytes);
+      setStatus("Received file: " + fileName);
+    } catch (IOException e) {
+      if (target != null) {
+        target.abort(getContentResolver());
+      }
+      Log.e(TAG_FILE, "Receiver failed while saving " + fileName + ". bytesRead=" + totalRead, e);
+      setStatus("Receive failed: " + e.getMessage());
+      throw e;
+    } finally {
+      if (target != null) {
+        target.closeQuietly();
+      }
+    }
+  }
+
+  private long copyKnownLength(DataInputStream in, OutputStream out, byte[] buffer,
+                               String fileName, long fileSizeInBytes) throws IOException {
+    long totalRead = 0;
+    while (totalRead < fileSizeInBytes) {
+      int maxRead = (int) Math.min(buffer.length, fileSizeInBytes - totalRead);
+      int read = in.read(buffer, 0, maxRead);
+      if (read < 0) {
+        throw new EOFException("Transfer ended early: " + totalRead + "/" + fileSizeInBytes + " bytes");
+      }
+      out.write(buffer, 0, read);
+      totalRead += read;
+      logTransferProgress("Receiver", "Receiving", fileName, totalRead, fileSizeInBytes);
+    }
+    return totalRead;
+  }
+
+  private long copyUntilEof(InputStream in, OutputStream out, byte[] buffer, String fileName) throws IOException {
+    long totalRead = 0;
+    int read;
+    while ((read = in.read(buffer)) > 0) {
+      out.write(buffer, 0, read);
+      totalRead += read;
+      if (totalRead % PROGRESS_LOG_BYTES < read) {
+        Log.d(TAG_FILE, "Receiver progress. fileName=" + fileName + ", bytes=" + totalRead);
+        setStatus("Receiving " + fileName + ": " + totalRead + " bytes");
+      }
+    }
+    return totalRead;
+  }
+
+  private IncomingFileTarget openIncomingFileTarget(String fileName, String mimeType) throws IOException {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       ContentValues values = new ContentValues();
       values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
       values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
       values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + APP_LABEL);
+      values.put(MediaStore.MediaColumns.IS_PENDING, 1);
       Log.d(TAG_FILE, "Creating MediaStore download entry. displayName=" + fileName
               + ", mimeType=" + mimeType
               + ", relativePath=" + Environment.DIRECTORY_DOWNLOADS + "/" + APP_LABEL);
@@ -1563,7 +1668,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         return null;
       }
       Log.d(TAG_FILE, "MediaStore download entry created. uri=" + uri);
-      return getContentResolver().openOutputStream(uri);
+      return new IncomingFileTarget(getContentResolver().openOutputStream(uri), uri);
     }
 
     File directory = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), APP_LABEL);
@@ -1573,7 +1678,51 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     }
     File outputFile = new File(directory, fileName);
     Log.d(TAG_FILE, "Creating legacy download file: " + outputFile.getAbsolutePath());
-    return new FileOutputStream(outputFile);
+    return new IncomingFileTarget(new FileOutputStream(outputFile), null);
+  }
+
+  /**
+   * Holds the destination stream plus optional MediaStore Uri for one incoming file.
+   *
+   * <p>On Android 10+ files are created with {@code IS_PENDING=1}. A successful transfer calls
+   * {@link #markCompleted(ContentResolver)} so other apps can see the file; a failed transfer calls
+   * {@link #abort(ContentResolver)} to remove a partial entry.</p>
+   */
+  private static class IncomingFileTarget {
+    final OutputStream outputStream;
+    final Uri uri;
+
+    IncomingFileTarget(OutputStream outputStream, Uri uri) {
+      this.outputStream = outputStream;
+      this.uri = uri;
+    }
+
+    void markCompleted(ContentResolver resolver) {
+      if (uri == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        return;
+      }
+      ContentValues values = new ContentValues();
+      values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+      resolver.update(uri, values, null, null);
+    }
+
+    void abort(ContentResolver resolver) {
+      closeQuietly();
+      if (uri != null) {
+        resolver.delete(uri, null, null);
+      }
+    }
+
+    void closeQuietly() {
+      if (outputStream == null) {
+        return;
+      }
+      try {
+        outputStream.close();
+      } catch (IOException e) {
+        Log.d(TAG_FILE, "Error closing incoming file stream: " + e);
+      }
+    }
   }
 
   private String sanitizeFileName(String fileName) {
@@ -1581,6 +1730,28 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
       return APP_LABEL + "-file";
     }
     return fileName.replaceAll("[\\\\/:*?\"<>|]", "_");
+  }
+
+  /**
+   * Logs and displays progress at coarse byte boundaries to keep UI updates inexpensive.
+   *
+   * @param logPrefix "Sender" or "Receiver" for logcat readability
+   * @param statusVerb user-facing verb, for example "Sending" or "Receiving"
+   * @param fileName sanitized display name
+   * @param transferredBytes bytes copied so far
+   * @param totalBytes expected file size from the protocol header
+   */
+  private void logTransferProgress(String logPrefix, String statusVerb, String fileName,
+                                   long transferredBytes, long totalBytes) {
+    if (totalBytes <= 0 || transferredBytes % PROGRESS_LOG_BYTES >= TRANSFER_BUFFER_SIZE) {
+      return;
+    }
+    float percent = (float) transferredBytes / totalBytes * 100;
+    Log.d(TAG_FILE, logPrefix + " progress. fileName=" + fileName
+            + ", bytes=" + transferredBytes
+            + "/" + totalBytes
+            + ", percent=" + String.format("%.1f", percent));
+    setStatus(statusVerb + " " + fileName + ": " + String.format("%.1f", percent) + "%");
   }
 
   private String getDisplayName(Uri uri) {
@@ -1624,57 +1795,9 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     Runnable clientTask = new Runnable() {
       @Override
       public void run() {
-        byte[] buffer = new byte[4096];
-        Socket clientSocket = null;
         Log.d(TAG_FILE, "Sender thread running. serverIP=" + serverIP.getHostAddress() + ", serverPort=" + serverPort);
         try {
-          clientSocket = new Socket(serverIP, serverPort);
-          Log.d(TAG_FILE, "Sender socket connected. remote=" + clientSocket.getRemoteSocketAddress()
-                  + ", local=" + clientSocket.getLocalSocketAddress());
-          DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(clientSocket.getOutputStream()));
-          InputStream in = getContentResolver().openInputStream(fileUri);
-          if (in == null) {
-            Log.e(TAG_FILE, "Sender could not open selected file input stream. uri=" + fileUri);
-            setStatus("Could not open selected file.");
-            dos.close();
-            clientSocket.close();
-            return;
-          }
-          String fileName = sanitizeFileName(getDisplayName(fileUri));
-          long fileSizeInBytes = getFileSize(fileUri);
-          String mimeType = getContentResolver().getType(fileUri);
-          if (mimeType == null) {
-            mimeType = "application/octet-stream";
-          }
-          Log.d(TAG_FILE, "Sender header prepared. fileName=" + fileName
-                  + ", fileSize=" + fileSizeInBytes
-                  + ", mimeType=" + mimeType);
-          dos.writeUTF(fileName);
-          dos.writeLong(fileSizeInBytes);
-          dos.writeUTF(mimeType);
-          int count;
-          long totalSent = 0;
-          Log.d(TAG_FILE, "Sender body transfer started. fileName=" + fileName);
-          setStatus("Sending " + fileName + "...");
-          while ((count = in.read(buffer)) > 0) {
-            totalSent += count;
-            dos.write(buffer, 0, count);
-            if (fileSizeInBytes > 0 && totalSent % (1024 * 1024) < count) {
-              float percent = (float) totalSent / fileSizeInBytes * 100;
-              Log.d(TAG_FILE, "Sender progress. fileName=" + fileName
-                      + ", bytes=" + totalSent
-                      + "/" + fileSizeInBytes
-                      + ", percent=" + String.format("%.1f", percent));
-              setStatus("Sending " + fileName + ": " + String.format("%.1f", percent) + "%");
-            }
-          }
-          in.close();
-          dos.close();
-          clientSocket.close();
-          Log.d(TAG_FILE, "Sender body transfer finished. fileName=" + fileName
-                  + ", totalBytes=" + totalSent
-                  + ", expectedBytes=" + fileSizeInBytes);
-          setStatus("Finished sending file: " + fileName);
+          sendSingleFile(fileUri, serverIP, serverPort);
         } catch(FileNotFoundException e){
           Log.e(TAG_FILE, "Sender selected file not found.", e);
           setStatus("Selected file was not found.");
@@ -1688,6 +1811,103 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     Thread clientThread = new Thread(clientTask);
     clientThread.start();
 
+  }
+
+  /**
+   * Sends one selected document to the peer file receiver.
+   *
+   * <p>Input is a SAF {@link Uri} plus the scoped IPv6/port resolved by
+   * {@link #chooseFileForSend()}. Output is the on-the-wire protocol consumed by
+   * {@link #receiveSingleFile(Socket)}. The method retries socket connection because NDP callbacks
+   * and discovery messages can arrive slightly before the data path is fully routable.</p>
+   *
+   * @throws IOException when the file cannot be opened, the socket cannot connect, or the stream fails
+   */
+  private void sendSingleFile(Uri fileUri, Inet6Address serverIP, int serverPort) throws IOException {
+    String fileName = sanitizeFileName(getDisplayName(fileUri));
+    long fileSizeInBytes = getFileSize(fileUri);
+    String mimeType = getContentResolver().getType(fileUri);
+    if (mimeType == null) {
+      mimeType = "application/octet-stream";
+    }
+
+    try (Socket clientSocket = openConnectedSocket(serverIP, serverPort);
+         DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(clientSocket.getOutputStream(), TRANSFER_BUFFER_SIZE));
+         InputStream in = new BufferedInputStream(openRequiredInputStream(fileUri), TRANSFER_BUFFER_SIZE)) {
+      Log.d(TAG_FILE, "Sender header prepared. fileName=" + fileName
+              + ", fileSize=" + fileSizeInBytes
+              + ", mimeType=" + mimeType);
+      dos.writeUTF(fileName);
+      dos.writeLong(fileSizeInBytes);
+      dos.writeUTF(mimeType);
+
+      byte[] buffer = new byte[TRANSFER_BUFFER_SIZE];
+      int count;
+      long totalSent = 0;
+      Log.d(TAG_FILE, "Sender body transfer started. fileName=" + fileName);
+      setStatus("Sending " + fileName + "...");
+      while ((count = in.read(buffer)) > 0) {
+        dos.write(buffer, 0, count);
+        totalSent += count;
+        logTransferProgress("Sender", "Sending", fileName, totalSent, fileSizeInBytes);
+      }
+      dos.flush();
+      Log.d(TAG_FILE, "Sender body transfer finished. fileName=" + fileName
+              + ", totalBytes=" + totalSent
+              + ", expectedBytes=" + fileSizeInBytes);
+      setStatus("Finished sending file: " + fileName);
+    }
+  }
+
+  private InputStream openRequiredInputStream(Uri fileUri) throws IOException {
+    InputStream inputStream = getContentResolver().openInputStream(fileUri);
+    if (inputStream == null) {
+      throw new FileNotFoundException("Could not open selected file: " + fileUri);
+    }
+    return inputStream;
+  }
+
+  private Socket openConnectedSocket(Inet6Address serverIP, int serverPort) throws IOException {
+    IOException lastException = null;
+    for (int attempt = 1; attempt <= SEND_CONNECT_MAX_ATTEMPTS; attempt++) {
+      Socket socket = null;
+      try {
+        socket = activeAwareNetwork != null
+                ? activeAwareNetwork.getSocketFactory().createSocket()
+                : new Socket();
+        socket.setKeepAlive(true);
+        socket.setTcpNoDelay(true);
+        socket.setSoTimeout(SOCKET_READ_TIMEOUT_MS);
+        socket.connect(new InetSocketAddress(serverIP, serverPort), SOCKET_CONNECT_TIMEOUT_MS);
+        Log.d(TAG_FILE, "Sender socket connected. attempt=" + attempt
+                + ", remote=" + socket.getRemoteSocketAddress()
+                + ", local=" + socket.getLocalSocketAddress()
+                + ", network=" + activeAwareNetwork);
+        return socket;
+      } catch (IOException e) {
+        lastException = e;
+        Log.e(TAG_FILE, "Sender socket connect failed. attempt=" + attempt
+                + "/" + SEND_CONNECT_MAX_ATTEMPTS
+                + ", serverIP=" + serverIP
+                + ", serverPort=" + serverPort, e);
+        if (socket != null) {
+          try {
+            socket.close();
+          } catch (IOException closeException) {
+            Log.d(TAG_FILE, "Error closing failed sender socket: " + closeException);
+          }
+        }
+        if (attempt < SEND_CONNECT_MAX_ATTEMPTS) {
+          try {
+            Thread.sleep(SEND_RETRY_DELAY_MS);
+          } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while retrying file sender connection", interruptedException);
+          }
+        }
+      }
+    }
+    throw lastException == null ? new IOException("Sender socket connect failed") : lastException;
   }
 
   //-------------------------------------------------------------------------------------------- -----

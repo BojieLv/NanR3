@@ -31,6 +31,8 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.settings_activity);
+        // The settings UI is hosted in a fragment so preference validation and visibility
+        // rules stay isolated from the activity navigation shell.
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()
@@ -96,7 +98,10 @@ public class SettingsActivity extends AppCompatActivity {
          * Called when a preference value has been changed.
          *
          * <p>This method handles visibility of the passphrase field based on
-         * the selected encryption type (open/pmk/psk).</p>
+         * the selected encryption type (open/pmk/psk). Input is the changed
+         * SharedPreferences key; output is an updated preference UI. Invalid or missing
+         * preference instances are ignored because Android can recreate this fragment while
+         * the backing preference screen is still settling.</p>
          *
          * @param sharedPreferences The SharedPreferences containing the changed preference
          * @param key The key of the preference that was changed
@@ -140,7 +145,10 @@ public class SettingsActivity extends AppCompatActivity {
          * Called when a preference is about to be changed and should be validated.
          *
          * <p>This method validates that service name and service-specific info
-         * are not empty before allowing the change.</p>
+         * are not empty before allowing the change. The return value is the validation
+         * result consumed by the AndroidX Preference framework. Validation errors are
+         * handled by showing a toast and returning {@code false}; no exception is thrown
+         * for user-entered invalid text.</p>
          *
          * @param preference The Preference to be changed
          * @param newValue The new value for the preference
@@ -184,6 +192,8 @@ public class SettingsActivity extends AppCompatActivity {
         @Override
         public void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
+            // Register for live updates so switching between open/PMK/PSK immediately
+            // shows or hides the passphrase field without leaving the settings screen.
             getPreferenceScreen().getSharedPreferences()
                     .registerOnSharedPreferenceChangeListener(this);
             String secType = getString(R.string.encryptType);

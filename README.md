@@ -273,3 +273,31 @@ Important file-transfer logs include:
   - Filter by tag "myNanR3" for application logs
   - Filter by "WifiAware" for system logs
   - Exception stack traces for send/receive failures.
+
+## Engineering Notes Added 2026-05-10
+
+### Transfer Reliability
+
+- Sender sockets use explicit connection/read timeouts and retry connection attempts. This reduces failures caused by the short timing gap between NDP callbacks and the peer receiver becoming routable.
+- Sender socket creation prefers the active Wi-Fi Aware `Network` socket factory when Android reports one. This helps route IPv6 link-local traffic over the NDP interface instead of relying on the default network.
+- Transfer buffers are centralized and increased to 64 KiB to reduce per-read/per-write overhead while keeping memory usage small.
+- The receiver validates the body against the file size from the header when the size is known. If the sender disconnects early, the partial transfer is treated as failed instead of being reported as successful.
+- Android 10+ received files are inserted into MediaStore with `IS_PENDING=1` and are only published after the body is flushed successfully. Failed receives delete the partial MediaStore item.
+- A failed incoming file no longer stops the receiver server loop. The server keeps listening so the peer can retry without restarting discovery.
+
+### Core Code Structure
+
+- `chooseFileForSend()` validates peer IPv6, scoped interface, and receiver port before opening the document picker.
+- `startInitiatorNdpIfReady()` and `startResponderNdpIfReady()` are intentionally idempotent because Wi-Fi Aware readiness is assembled from several asynchronous callbacks.
+- `clientSendFile()` now delegates the actual stream work to a focused sender helper, while `startServer()` delegates each accepted socket to a focused receiver helper.
+- File metadata helpers sanitize incoming file names and fall back to `application/octet-stream` when MIME type metadata is absent.
+
+### Verification
+
+Build command:
+
+```powershell
+$env:JAVA_HOME='D:\ProgramData\Android-Studio\jbr'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+.\gradlew assembleDebug
+```
