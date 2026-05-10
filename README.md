@@ -32,6 +32,36 @@ Note: Wi-Fi Aware availability varies by region and device model. Not all device
 
 ### Phase 1: Wi-Fi Aware Discovery & NDP Establishment
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Publisher / Sender
+    participant NAN as Wi-Fi Aware NAN Cluster
+    participant S as Subscriber / Receiver
+
+    P->>P: Publish button
+    S->>S: Subscribe button
+    P->>NAN: attach() and publish(SERVICE_NAME)
+    S->>NAN: attach() and subscribe(SERVICE_NAME)
+    P->>P: startServer(0, backlog)
+    S->>S: startServer(0, backlog)
+    NAN-->>P: onPublishStarted()
+    NAN-->>S: onSubscribeStarted()
+    NAN-->>P: onServiceDiscovered(peerHandle)
+    NAN-->>S: onServiceDiscovered(peerHandle)
+    P-->>S: sendMessage(MAC, receiverPort)
+    S-->>P: sendMessage(MAC, receiverPort)
+    P-->>S: sendMessage(local IPv6)
+    S-->>P: sendMessage(local IPv6)
+    P->>NAN: startResponderNdpIfReady()
+    S->>NAN: startInitiatorNdpIfReady()
+    NAN-->>P: onCapabilitiesChanged(peerIpv6, peerPort)
+    NAN-->>S: onCapabilitiesChanged(peerIpv6, peerPort)
+    NAN-->>P: onLinkPropertiesChanged(local IPv6, interface)
+    NAN-->>S: onLinkPropertiesChanged(local IPv6, interface)
+    Note over P,S: NDP established over scoped IPv6
+```
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    Publisher (Sender) Device                           │
