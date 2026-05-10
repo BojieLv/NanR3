@@ -47,7 +47,7 @@ sequenceDiagram
     NAN-->>S: onCapabilitiesChanged(peerIpv6, peerPort)
     NAN-->>P: onLinkPropertiesChanged(local IPv6, interface)
     NAN-->>S: onLinkPropertiesChanged(local IPv6, interface)
-    P<->>S: NDP established over scoped IPv6
+    Note over P,S: NDP established over scoped IPv6
 ```
 
 ```
