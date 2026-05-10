@@ -16,6 +16,18 @@ A peer-to-peer file transfer application using Wi-Fi Aware (NAN - Neighbor Aware
 - Device with Wi-Fi Aware support (NAN)
 - Android Studio Hedgehog (2023.1.1) or later
 
+### Wi-Fi Aware 3.0 Supported Devices
+
+Wi-Fi Aware 3.0 (required for this application) is supported on the following flagship devices:
+
+| Brand | Supported Models |
+|-------|------------------|
+| **Samsung** | Galaxy S22 and later flagship devices (S22, S22+, S22 Ultra, S23 series, S24 series, S25 series, S26 series) |
+| **Xiaomi** | Xiaomi 14 and later flagship devices (Xiaomi 14, 14 Pro, 14 Ultra, 15 series, 17 series) |
+| **Google** | Pixel 9 and later flagship devices (Pixel 9, 9 Pro, 9 Pro XL, 10 series) |
+
+Note: Wi-Fi Aware availability varies by region and device model. Not all devices from these brands support Wi-Fi Aware 3.0.
+
 ## NDP and File Transfer Flow
 
 ### Phase 1: Wi-Fi Aware Discovery & NDP Establishment
